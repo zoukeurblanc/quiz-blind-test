@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Blind test par équipes</title>
+<style>
+:root{--bg:#0d0b1e;--ink:#f5f1e8;--mute:#8d86a8;--card:#1a1733;--gold:#ffc24b;--red:#ff4d6d;--green:#2ecc8f}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{padding:env(safe-area-inset-top,0px) 16px env(safe-area-inset-bottom,0px)}
+h1{font-size:28px;margin:20px 0 4px;font-weight:900}
+.screen{display:none;max-width:520px;margin:0 auto;padding-bottom:40px}
+.screen.on{display:block}
+.card{background:var(--card);border-radius:18px;padding:16px;margin:12px 0}
+.label{color:var(--mute);font-size:14px;margin:12px 0 4px}
+.opt{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:17px}
+.opt input{width:20px;height:20px}
+input[type=range]{width:100%}
+select,input.txt,input.gi{font:inherit;background:#0f0d24;color:var(--ink);border:0;border-radius:12px;padding:12px;width:100%;margin:4px 0}
+button{font:inherit;border:0;border-radius:14px;padding:14px;font-size:17px;font-weight:700;background:var(--gold);color:#1a1200;width:100%;margin:6px 0;cursor:pointer}
+button.ghost{background:transparent;color:var(--ink);border:2px solid #3a3566}
+button.good{background:var(--green);color:#06271a;padding:8px;font-size:13px;margin:0}
+button.bad{background:var(--red);color:#2a0008;padding:8px;font-size:13px;margin:0}
+button:disabled{opacity:.35}
+.code{font-size:44px;font-weight:900;letter-spacing:8px;text-align:center;color:var(--gold)}
+.meta{display:flex;justify-content:space-between;color:var(--mute);font-size:15px;margin-top:8px}
+.timer{width:150px;height:150px;margin:8px auto;position:relative}
+.timer svg{transform:rotate(-90deg)}
+.timer b{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:52px;font-weight:900}
+.q{font-size:24px;font-weight:800;line-height:1.3;text-align:center;min-height:90px;display:flex;align-items:center;justify-content:center}
+.answer{font-size:22px;color:var(--gold);text-align:center;font-weight:800;min-height:30px}
+.teams{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.team{border-radius:14px;padding:12px;background:#0f0d24;border-left:6px solid var(--c)}
+.team .name{font-weight:800;font-size:16px}
+.team .pts{font-size:30px;font-weight:900}
+.team .gc{color:var(--mute);font-size:14px}
+.guess{margin-top:8px}
+.guess button{padding:8px;font-size:13px;margin:4px 0 0}
+.judge{display:grid;grid-template-columns:1fr;gap:4px;margin-top:6px}
+.msg{font-size:13px;min-height:18px;margin-top:4px}
+.ok{color:var(--green);font-weight:700}
+.ko{color:var(--red);font-weight:700}
+.players{font-size:15px;line-height:1.7;color:var(--mute)}
+.result{font-size:26px;font-weight:900;text-align:center;margin:20px 0}
+.flash{position:fixed;inset:0;background:radial-gradient(circle,#fff9 0%,#ff9a3c 30%,transparent 70%);opacity:0;pointer-events:none;transition:opacity .9s}
+.flash.go{opacity:1;transition:none}
+.err{color:var(--red);font-size:14px;min-height:18px}
+</style>
+</head>
+<body>
+
+<!-- Accueil : créer ou rejoindre une partie -->
+<section id="home" class="screen on">
+  <h1>Blind test par équipes</h1>
+  <div class="card">
+    <div class="label">Ton prénom</div>
+    <input class="txt" id="myname" placeholder="Ton prénom">
+    <div class="label">Rejoindre une partie</div>
+    <input class="txt" id="code" placeholder="Code à 4 lettres" maxlength="4" style="text-transform:uppercase">
+    <button class="ghost" onclick="joinGame()">Rejoindre</button>
+  </div>
+  <div class="card">
+    <div class="label">Créer une partie (hôte)</div>
+    <div class="label">Catégories</div>
+    <div id="cats"></div>
+    <div class="label">Nombre de questions</div>
+    <select id="n"><option value="20">20 questions</option><option value="50">50 questions</option></select>
+    <div class="label">Temps par question : <span id="tv">10</span> s</div>
+    <input type="range" id="time" min="5" max="30" value="10">
+    <div class="label">Nombre d'équipes</div>
+    <select id="nt"><option value="2">2 équipes</option><option value="3">3 équipes</option><option value="4">4 équipes</option></select>
+    <div class="label">Noms des équipes, séparés par des virgules (facultatif)</div>
+    <input class="txt" id="tnames" placeholder="Les Rouges, Les Bleus">
+    <button onclick="createGame()">Créer la partie</button>
+  </div>
+  <div class="err" id="err1"></div>
+</section>
+
+<!-- Salle d'attente -->
+<section id="lobby" class="screen">
+  <h1>Salle d'attente</h1>
+  <div class="card">
+    <div class="label">Code de la partie</div>
+    <div class="code" id="lcode"></div>
+    <div class="label" id="ninfo"></div>
+  </div>
+  <div class="card">
+    <div class="label">Joueurs (choisis ton équipe)</div>
+    <div class="players" id="players"></div>
+    <div id="teamchoice"></div>
+  </div>
+  <button id="startbtn" onclick="startGame()">Lancer la partie</button>
+  <div class="err" id="err2"></div>
+</section>
+
+<!-- Question en cours -->
+<section id="play" class="screen">
+  <div class="meta"><span id="catl"></span><span id="qn"></span></div>
+  <div class="card">
+    <div class="q" id="qt"></div>
+    <div class="timer">
+      <svg width="150" height="150">
+        <circle cx="75" cy="75" r="66" stroke="#2a2550" stroke-width="12" fill="none"/>
+        <circle id="ring" cx="75" cy="75" r="66" stroke="#ffc24b" stroke-width="12" fill="none" stroke-linecap="round" stroke-dasharray="414.69" stroke-dashoffset="0"/>
+      </svg>
+      <b id="cd">10</b>
+    </div>
+    <div class="answer" id="ans"></div>
+  </div>
+  <button id="stop" class="ghost" onclick="act('stop')">Arrêter le chrono</button>
+  <div class="teams" id="tlist"></div>
+  <button id="next" onclick="act('next')">Question suivante</button>
+  <div class="err" id="err3"></div>
+</section>
+
+<!-- Fin -->
+<section id="end" class="screen">
+  <h1>Fin de partie</h1>
+  <div class="result" id="result"></div>
+  <div id="ranking" class="teams"></div>
+</section>
+
+<div class="flash" id="flash"></div>
+
+<script>
+const CATS = ['Histoire','Sport','Musique']; // Actualité à ajouter quand la banque sera remplie
+const COLORS = ['#ff4d6d','#4dd2ff','#ffc24b','#7dff8a'];
+const C = 2 * Math.PI * 66;
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+let ME = {code: null, id: null}, S = null, es = null, lastEv = 0, lastSig = '', actx = null;
+
+/* ---------- Sons ---------- */
+function ctx(){ actx = actx || new (window.AudioContext || window.webkitAudioContext)(); return actx; }
+function tick(){
+  if (!actx) return;
+  const a = actx, o = a.createOscillator(), g = a.createGain();
+  o.type = 'square'; o.frequency.value = 1200;
+  g.gain.setValueAtTime(.15, a.currentTime);
+  g.gain.exponentialRampToValueAtTime(.001, a.currentTime + .05);
+  o.connect(g).connect(a.destination); o.start(); o.stop(a.currentTime + .06);
+}
+function gong(){
+  const fl = $('flash'); fl.classList.add('go'); setTimeout(() => fl.classList.remove('go'), 60);
+  if (!actx) return;
+  const a = actx, len = a.sampleRate * 1.6;
+  const b = a.createBuffer(1, len, a.sampleRate), d = b.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+  const s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+  f.type = 'lowpass'; f.frequency.value = 600; g.gain.value = 1.2;
+  s.buffer = b; s.connect(f).connect(g).connect(a.destination); s.start();
+}
+
+/* ---------- Réseau ---------- */
+async function api(name, body){
+  const r = await fetch('/api/' + name, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({...body, code: ME.code, id: ME.id})
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error);
+  return j;
+}
+function act(name){ api(name, {}).catch(e => $('err3').textContent = e.message); }
+function connect(){
+  if (es) es.close();
+  es = new EventSource(`/events?room=${ME.code}&id=${ME.id}`);
+  es.onmessage = e => { S = JSON.parse(e.data); onState(); };
+}
+
+/* ---------- Accueil ---------- */
+function renderCats(){
+  $('cats').innerHTML = CATS.map(c => `<label class="opt"><input type="checkbox" value="${c}" checked> ${c}</label>`).join('');
+}
+$('time').oninput = () => $('tv').textContent = $('time').value;
+
+async function createGame(){
+  ctx();
+  $('err1').textContent = '';
+  const cats = [...document.querySelectorAll('#cats input:checked')].map(x => x.value);
+  if (!cats.length){ $('err1').textContent = 'Choisis au moins une catégorie.'; return; }
+  try {
+    const r = await fetch('/api/create', {method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name: $('myname').value.trim(), cats, n: +$('n').value, time: +$('time').value,
+        teamCount: +$('nt').value, teamNames: $('tnames').value})});
+    const j = await r.json(); if (!r.ok) throw new Error(j.error);
+    ME = {code: j.code, id: j.id}; connect();
+  } catch (e){ $('err1').textContent = e.message; }
+}
+
+async function joinGame(){
+  ctx();
+  $('err1').textContent = '';
+  try {
+    const code = $('code').value.trim().toUpperCase();
+    const r = await fetch('/api/join', {method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({code, name: $('myname').value.trim()})});
+    const j = await r.json(); if (!r.ok) throw new Error(j.error);
+    ME = {code: j.code, id: j.id}; connect();
+  } catch (e){ $('err1').textContent = e.message; }
+}
+
+function chooseTeam(i){ api('team', {team: i}).catch(e => $('err2').textContent = e.message); }
+function startGame(){ api('start', {}).catch(e => $('err2').textContent = e.message); }
+function guess(i){
+  api('guess', {team: i, text: $('g' + i).value}).catch(e => $('err3').textContent = e.message);
+}
+function judge(i, v){ api('judge', {team: i, v}).catch(e => $('err3').textContent = e.message); }
+
+/* ---------- Affichage ---------- */
+const MSG = {
+  exact: '<span class="ok">Réponse exacte</span>',
+  approx: '<span class="ok">Réponse approximative (fautes ignorées)</span>',
+  no: '<span class="ko">Réponse fausse</span>',
+  none: '<span class="ko">Écris d’abord la réponse</span>'
+};
+
+function show(id){ document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === id)); }
+
+function onState(){
+  // Sons : seulement pour les événements arrivés après la connexion.
+  if (S.ev && lastEv > 0 && S.ev.n !== lastEv){
+    if (S.ev.type === 'tick') tick(); else if (S.ev.type === 'gong') gong();
+  }
+  lastEv = S.ev ? S.ev.n : 0;
+
+  const me = S.players.find(p => p.id === ME.id);
+  const isHost = S.host === ME.id;
+
+  if (S.phase === 'lobby'){
+    show('lobby');
+    $('lcode').textContent = S.code;
+    $('ninfo').textContent = `${S.n} questions · ${S.time} s par question`;
+    $('players').innerHTML = S.players.map(p =>
+      `${esc(p.name)}${p.id === S.host ? ' (hôte)' : ''} : ${p.team === null ? 'pas d’équipe' : esc(S.teams[p.team].name)}`
+    ).join('<br>');
+    $('teamchoice').innerHTML = S.teams.map((t, i) =>
+      `<button class="ghost" style="border-left:6px solid ${t.c}" onclick="chooseTeam(${i})">${esc(t.name)}${me && me.team === i ? ' ✓' : ''}</button>`
+    ).join('');
+    $('startbtn').style.display = isHost ? 'block' : 'none';
+    return;
+  }
+
+  if (S.phase === 'end'){
+    show('end');
+    const sorted = [...S.teams].sort((a, b) => b.pts - a.pts);
+    const tie = sorted.length > 1 && sorted[1].pts === sorted[0].pts;
+    $('result').textContent = tie ? 'Égalité en tête' : `${sorted[0].name} gagne la partie !`;
+    $('ranking').innerHTML = sorted.map(t => `<div class="team" style="--c:${t.c}">
+      <div class="name">${esc(t.name)}</div><div class="pts">${t.pts} pt${Math.abs(t.pts) > 1 ? 's' : ''}</div>
+      <div class="gc">${t.good} bonne(s), ${t.bad} mauvaise(s)</div></div>`).join('');
+    return;
+  }
+
+  show('play');
+  $('catl').textContent = S.cur.cat;
+  $('qn').textContent = `${S.idx + 1} / ${S.n}`;
+  $('qt').textContent = S.cur.q;
+  $('ans').textContent = S.cur.a ? 'Réponse : ' + S.cur.a : '';
+  $('cd').textContent = S.left;
+  $('ring').style.strokeDashoffset = C * (1 - S.left / S.time);
+  $('stop').style.display = isHost ? 'block' : 'none';
+  $('stop').disabled = S.phase !== 'run';
+  $('next').style.display = isHost ? 'block' : 'none';
+  $('next').disabled = S.phase !== 'judge';
+
+  // On ne redessine les équipes que si quelque chose change (pas à chaque seconde),
+  // pour ne pas effacer ce que quelqu'un est en train de taper.
+  const myTeam = me ? me.team : null;
+  const sig = JSON.stringify([S.teams, S.judged, S.msg, S.phase, S.idx, myTeam, isHost]);
+  if (sig === lastSig) return;
+  lastSig = sig;
+
+  $('tlist').innerHTML = S.teams.map((t, i) => {
+    const done = S.judged[i] !== null && S.judged[i] !== undefined;
+    const dis = done ? 'disabled' : '';
+    const mine = myTeam === i;
+    const msg = S.msg[i] ? MSG[S.msg[i]] || '' : '';
+    const box = mine
+      ? `<div class="guess">
+           <input class="gi" id="g${i}" placeholder="Réponse de l’équipe" value="${esc(S.guess[i] || '')}" ${dis}>
+           <button class="ghost" ${dis} onclick="guess(${i})">Vérifier la réponse</button>
+         </div>`
+      : '';
+    const hostBtns = isHost && !done
+      ? `<div class="judge"><button class="good" onclick="judge(${i},1)">Trouvée +1</button><button class="bad" onclick="judge(${i},-1)">Pas trouvée −1</button></div>`
+      : '';
+    return `<div class="team" style="--c:${t.c}">
+      <div class="name">${esc(t.name)}${mine ? ' (ton équipe)' : ''}</div>
+      <div class="pts">${t.pts} pt${Math.abs(t.pts) > 1 ? 's' : ''}</div>
+      <div class="gc">${t.good} bonne(s) réponse(s), ${t.bad} mauvaise(s)</div>
+      ${box}<div class="msg">${msg}</div>${hostBtns}
+    </div>`;
+  }).join('');
+}
+
+// Au chargement : la page s'ouvre directement sur l'accueil.
+renderCats();
+</script>
+</body>
+</html>
